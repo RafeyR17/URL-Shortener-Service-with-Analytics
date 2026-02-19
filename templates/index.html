@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern URL Shortener</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/json-enc.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        body {
+            background: radial-gradient(circle at top left, #1a2a6c, #b21f1f, #fdbb2d);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+
+<body class="text-white font-sans">
+    <div class="container mx-auto px-4 py-12 max-w-4xl">
+        <header class="text-center mb-12">
+            <h1 class="text-6xl font-extrabold mb-4 tracking-tight">
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-200 to-yellow-200">
+                    Shorter.io
+                </span>
+            </h1>
+            <p class="text-xl text-blue-100 opacity-80">Fast, secure, and reliable URL shortening with deep analytics.
+            </p>
+        </header>
+
+        <main class="space-y-8">
+            <!-- Shorten Form -->
+            <section class="glass p-8 rounded-3xl shadow-2xl">
+                <form id="shorten-form" hx-post="/api/v1/shorten" hx-ext="json-enc" hx-target="#result-container"
+                    hx-swap="innerHTML" class="space-y-4">
+                    <div class="flex flex-col md:flex-row gap-4">
+                        <input type="url" name="original_url" required placeholder="Paste your long URL here..."
+                            class="flex-1 bg-white/20 border-white/30 text-white placeholder-blue-100 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-yellow-400 transition-all">
+                        <button type="submit"
+                            class="bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold px-8 py-4 rounded-2xl transition-all transform hover:scale-105 active:scale-95 shadow-lg">
+                            Shorten Now
+                        </button>
+                    </div>
+                    <div class="flex gap-4 items-center text-sm opacity-80">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="text" name="custom_alias" placeholder="Custom Alias (optional)"
+                                class="bg-white/10 border-white/20 text-white placeholder-blue-100 rounded-xl px-4 py-2 outline-none focus:ring-1 focus:ring-yellow-400">
+                        </label>
+                        <select name="expire_days"
+                            class="bg-white/10 border-white/20 text-white rounded-xl px-4 py-2 outline-none">
+                            <option value="" class="bg-blue-900">Never Expire</option>
+                            <option value="1" class="bg-blue-900">1 Day</option>
+                            <option value="7" class="bg-blue-900">7 Days</option>
+                            <option value="30" class="bg-blue-900">30 Days</option>
+                        </select>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Result Area -->
+            <div id="result-container"></div>
+
+            <!-- Stats Helper (Search) -->
+            <section class="glass p-8 rounded-3xl shadow-2xl">
+                <h2 class="text-2xl font-bold mb-4">Check Link Stats</h2>
+                <div class="flex gap-4">
+                    <input type="text" id="stats-code" placeholder="Enter short code (e.g. abc123)"
+                        class="flex-1 bg-white/10 border-white/20 text-white placeholder-blue-100 rounded-2xl px-6 py-3 outline-none focus:ring-2 focus:ring-yellow-400 transition-all">
+                    <button onclick="checkStats()"
+                        class="bg-blue-500 hover:bg-blue-400 text-white font-bold px-8 py-3 rounded-2xl transition-all shadow-lg">
+                        View Stats
+                    </button>
+                </div>
+                <div id="stats-result" class="mt-8"></div>
+            </section>
+        </main>
+
+        <footer class="mt-16 text-center opacity-60 text-sm">
+            <p>&copy; 2026 Shorter.io Service. Built with FastAPI & HTMX.</p>
+        </footer>
+    </div>
+
+    <!-- HTMX JSON Extension (Simplified for this demo) -->
+    <script>
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            if (event.detail.target.id === 'result-container') {
+                event.detail.headers['Content-Type'] = 'application/json';
+                const body = event.detail.parameters;
+                event.detail.parameters = JSON.stringify(body);
+            }
+        });
+
+        // Manual Stats Check Logic
+        async function checkStats() {
+            const code = document.getElementById('stats-code').value;
+            if (!code) return;
+
+            const res = await fetch(`/api/v1/stats/${code}`);
+            const data = await res.json();
+
+            const container = document.getElementById('stats-result');
+            if (res.ok) {
+                container.innerHTML = `
+                    <div class="bg-white/10 p-6 rounded-2xl animate-fade-in">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="text-center">
+                                <p class="text-sm opacity-60 uppercase tracking-widest mb-1">Total Clicks</p>
+                                <p class="text-4xl font-black text-yellow-400">${data.total_clicks}</p>
+                            </div>
+                            <div class="md:col-span-2">
+                                <p class="text-sm opacity-60 mb-2">Original URL</p>
+                                <a href="${data.original_url}" target="_blank" class="text-blue-200 hover:underline break-all">${data.original_url}</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `<p class="text-red-400">Error: ${data.detail || 'Could not fetch stats'}</p>`;
+            }
+        }
+
+        // Custom swap logic for HTMX result
+        document.addEventListener('htmx:afterOnLoad', (event) => {
+            if (event.detail.target.id === 'result-container' && event.detail.xhr.status === 200) {
+                const data = JSON.parse(event.detail.xhr.responseText);
+                event.detail.target.innerHTML = `
+                    <div class="bg-green-500/20 border border-green-500/50 p-6 rounded-3xl animate-bounce-short">
+                        <div class="flex items-center justify-between gap-4">
+                            <div>
+                                <p class="text-sm text-green-200 mb-1">URL Shortened Successfully!</p>
+                                <a href="${data.short_url}" target="_blank" class="text-2xl font-bold text-white hover:underline">${data.short_url}</a>
+                            </div>
+                            <button onclick="navigator.clipboard.writeText('${data.short_url}')" 
+                                    class="bg-white/20 hover:bg-white/30 p-4 rounded-2xl transition-all">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+    </script>
+    <style>
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        @keyframes bounceShort {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-5px);
+            }
+        }
+
+        .animate-bounce-short {
+            animation: bounceShort 0.5s ease-in-out 1;
+        }
+    </style>
+</body>
+
+</html>
